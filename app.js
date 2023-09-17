@@ -39,7 +39,7 @@ app.post('/products', async (req, res) => {
   if (error) {
     const [ errorMessage ] = error.details;
 
-    return res.status(httpStatus.BAD_REQUEST).send(errorMessage);
+    return res.status(httpStatus.BAD_REQUEST).json({ errorMessage });
   }
   const { categories, lowestPrice, highestPrice } = value;
 
@@ -98,7 +98,7 @@ app.post('/register', async (req, res) => {
   if (error) {
     const [ errorMessage ] = error.details;
 
-    return res.status(httpStatus.BAD_REQUEST).send(errorMessage);
+    return res.status(httpStatus.BAD_REQUEST).json({ errorMessage });
   }
 
   try {
@@ -110,7 +110,7 @@ app.post('/register', async (req, res) => {
     return res.status(httpStatus.OK).json({ user: mapped, token });
   } catch (error) {
     if (error.code === mongoErrors.duplication) {
-      return res.status(httpStatus.BAD_REQUEST).send('User already exists.');
+      return res.status(httpStatus.BAD_REQUEST).json({ errorMessage: 'User already exists.' });
     }
   }
 });
@@ -121,7 +121,7 @@ app.post('/login', async (req, res) => {
   if (error) {
     const [ errorMessage ] = error.details;
 
-    return res.status(httpStatus.BAD_REQUEST).send(errorMessage);
+    return res.status(httpStatus.BAD_REQUEST).json({ errorMessage });
   }
   const { email, password } = value;
 
@@ -131,7 +131,7 @@ app.post('/login', async (req, res) => {
   });
 
   if (!user) {
-    return res.status(httpStatus.BAD_REQUEST).send('Wrong credentials provided.');
+    return res.status(httpStatus.BAD_REQUEST).json({ errorMessage: 'Wrong credentials provided.' });
   }
 
   const mapped = mapUser(user);
@@ -146,13 +146,13 @@ app.post('/transaction', authMiddleware, async (req, res) => {
   if (error) {
     const [ errorMessage ] = error.details;
 
-    return res.status(httpStatus.BAD_REQUEST).send(errorMessage);
+    return res.status(httpStatus.BAD_REQUEST).json({ errorMessage });
   }
 
   const products = await Product.find({ _id: { $in: value.productIds } });
 
   if (!products.length) {
-    return res.status(httpStatus.BAD_REQUEST).send('No products in a card.');
+    return res.status(httpStatus.BAD_REQUEST).json({ errorMessage: 'No products in a card.' });
   }
 
   const productIds = products.map((product) => product._id);
@@ -176,7 +176,7 @@ app.get('/transaction/:token', authMiddleware, async (req, res) => {
   try {
     jwtPayload = jwt.verify(token, secret);
   } catch (error) {
-    return res.status(httpStatus.UNAUTHORIZED).send('Wrong transaction token.');
+    return res.status(httpStatus.UNAUTHORIZED).json({ errorMessage: 'Wrong transaction token.' });
   }
 
   const transactionId = new mongoose.Types.ObjectId(jwtPayload.id);
@@ -184,7 +184,7 @@ app.get('/transaction/:token', authMiddleware, async (req, res) => {
   const transaction = await Transaction.findById(transactionId);
 
   if (!transaction) {
-    return res.status(httpStatus.NOT_FOUND).send('Transaction does not exist.');
+    return res.status(httpStatus.NOT_FOUND).json({ errorMessage: 'Transaction does not exist.' });
   }
 
   const products = await Product.find({ _id: { $in: transaction.productIds } });
