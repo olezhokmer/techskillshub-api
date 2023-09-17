@@ -8,14 +8,18 @@ const cors = require('cors');
 const Product = require('./models/product.model');
 const User = require('./models/user.model');
 const Category = require('./models/category.model');
+const Transaction = require('./models/transaction.model');
 
 const productFilterSchema = require('./dto/getProductsSchema');
 const registerSchema = require('./dto/registerSchema');
 const loginSchema = require('./dto/loginSchema');
+const transactionSchema = require('./dto/transactionSchema');
+const authMiddleware = require('./middleware/auth');
+
 const httpStatus = require('http-status');
 
 const mongoErrors = require('./enums/mongoErrors');
-const { mapProduct, mapCategory, mapUser } = require('./utils/mapper');
+const { mapProduct, mapCategory, mapUser, mapTransaction, mapTransactionProduct } = require('./utils/mapper');
 
 dotenv.config();
 
@@ -134,6 +138,60 @@ app.post('/login', async (req, res) => {
   const token = jwt.sign(mapped, secret);
 
   return res.status(httpStatus.OK).json({ user: mapped, token });
+});
+
+app.post('/transaction', authMiddleware, async (req, res) => {
+  const { error, value } = transactionSchema.validate(req.body);
+
+  if (error) {
+    const [ errorMessage ] = error.details;
+
+    return res.status(httpStatus.BAD_REQUEST).send(errorMessage);
+  }
+
+  const products = await Product.find({ _id: { $in: value.productIds } });
+
+  if (!products.length) {
+    return res.status(httpStatus.BAD_REQUEST).send('No products in a card.');
+  }
+
+  const productIds = products.map((product) => product._id);
+
+  const transaction = new Transaction({
+    userId: req.user?._id,
+    productIds: productIds,
+  });
+
+  const savedTransaction = await transaction.save();
+  const mapped = mapTransaction(savedTransaction);
+  const token = jwt.sign(mapped, secret);
+
+  return res.status(httpStatus.OK).json({ token });
+});
+
+app.get('/transaction/:token', authMiddleware, async (req, res) => {
+  const { token } = req.params;
+  let jwtPayload;
+
+  try {
+    jwtPayload = jwt.verify(token, secret);
+  } catch (error) {
+    return res.status(httpStatus.UNAUTHORIZED).send('Wrong transaction token.');
+  }
+
+  const transactionId = new mongoose.Types.ObjectId(jwtPayload.id);
+
+  const transaction = await Transaction.findById(transactionId);
+
+  if (!transaction) {
+    return res.status(httpStatus.NOT_FOUND).send('Transaction does not exist.');
+  }
+
+  const products = await Product.find({ _id: { $in: transaction.productIds } });
+
+  const mapped = products.map((product) => mapTransactionProduct(product));
+
+  return res.status(httpStatus.OK).json({ products: mapped });
 });
 
 app.listen(process.env.PORT);

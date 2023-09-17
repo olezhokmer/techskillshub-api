@@ -32,8 +32,28 @@ function mapUser(user) {
   };
 }
 
+function mapTransactionProduct(product) {
+  if (!product) return;
+
+  return {
+    id: product._id.toString(),
+    name: product.name,
+    images: product.images,
+    fileUrl: product.fileUrl,
+  };
+}
+
+function mapTransaction(transaction) {
+  return {
+    id: transaction._id,
+    date: transaction.date,
+  };
+}
+
 module.exports = {
   mapProduct,
   mapCategory,
   mapUser,
+  mapTransaction,
+  mapTransactionProduct,
 };
